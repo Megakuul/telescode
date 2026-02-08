@@ -1,0 +1,45 @@
+{
+  "name": "telescode",
+  "displayName": "telescode",
+  "description": "Simple fuzzy finder for VSCode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.108.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "telescode.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "vite build && vite build -c vite.extension.config.ts",
+    "dev": "concurrently \"vite build --watch\" \"vite build -c vite.extension.config.ts --watch\""
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.109.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "concurrently": "^9.2.1",
+    "npm-run-all": "^4.1.5",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "vscode-ripgrep": "^1.13.2"
+  }
+}
