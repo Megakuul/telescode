@@ -19,6 +19,7 @@ export default defineConfig({
       fileName: 'web',
       formats: ['es'],
     },
+
     outDir: 'dist/web',
   },
 });

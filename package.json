@@ -9,13 +9,14 @@
   "categories": [
     "Other"
   ],
+  "type": "module",
   "activationEvents": [],
-  "main": "./dist/extension.js",
+  "main": "./dist/extension/extension.cjs",
   "contributes": {
     "commands": [
       {
-        "command": "telescode.helloWorld",
-        "title": "Hello World"
+        "command": "telescode.open",
+        "title": "Telescode"
       }
     ]
   },
@@ -40,6 +41,7 @@
     "vite": "^7.3.1"
   },
   "dependencies": {
-    "vscode-ripgrep": "^1.13.2"
+    "filename2shiki": "^1.1.0",
+    "shiki": "^3.22.0"
   }
 }

@@ -3,6 +3,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   build: {
+    target: 'node18',
     lib: {
       entry: resolve(__dirname, 'src/extension.ts'),
       name: 'telescode',
@@ -10,10 +11,11 @@ export default defineConfig({
       formats: ['cjs'],
     },
     rollupOptions: {
-      external: 'vscode',
+      external: ['vscode', 'path', /^node:/],
       output: {
         inlineDynamicImports: true,
       },
     },
+    outDir: 'dist/extension',
   },
 });
