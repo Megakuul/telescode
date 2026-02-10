@@ -13,6 +13,21 @@
   "activationEvents": [],
   "main": "./dist/extension/extension.cjs",
   "contributes": {
+    "configuration": {
+      "title": "Telescode Settings",
+      "properties": {
+        "telescode.maxResults": {
+          "type": "integer",
+          "default": 20,
+          "description": "Defines how many results are fetched per run"
+        },
+        "telescode.rgPath": {
+          "type": "string",
+          "default": "rg",
+          "description": "Defines the location of the ripgrep binary"
+        }
+      }
+    },
     "commands": [
       {
         "command": "telescode.open",

@@ -20,6 +20,9 @@ export default defineConfig({
       formats: ['es'],
     },
 
+    rollupOptions: {
+      external: ['vscode'],
+    },
     outDir: 'dist/web',
   },
 });
