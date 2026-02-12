@@ -4,14 +4,16 @@ import {
   listAction,
   listInput,
   listOutput,
+  match,
   previewAction,
   previewInput,
   previewOutput,
-  rgMatch,
   selectAction,
   selectInput,
 } from './types.js';
 import path, { resolve } from 'node:path';
+import { Grep } from './grep.js';
+import { Find } from './find.js';
 
 export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
@@ -53,17 +55,55 @@ export function activate(context: vscode.ExtensionContext) {
           </body>
         </html>
       `;
-      const rgState: { proc: ChildProcessWithoutNullStreams | null } = { proc: null };
+      let activeChild: ChildProcessWithoutNullStreams | null = null;
       panel.webview.onDidReceiveMessage(msg => {
         switch (msg.type) {
           case listAction:
-            list(config, panel, rgState, searchPath, msg.data);
+            if (activeChild) {
+              activeChild.removeAllListeners();
+              activeChild.stdout.removeAllListeners();
+              activeChild.stderr.removeAllListeners();
+              activeChild.kill('SIGKILL');
+            }
+            const input: listInput = msg.data;
+            switch (input.mode) {
+              case 'match':
+                activeChild = list(
+                  panel,
+                  new Grep(
+                    input.search,
+                    searchPath.fsPath,
+                    false,
+                    config.get<string>('rgPath'),
+                    10,
+                  ),
+                );
+                break;
+              case 'regex':
+                activeChild = list(
+                  panel,
+                  new Grep(input.search, searchPath.fsPath, true, config.get<string>('rgPath'), 10),
+                );
+                break;
+              case 'file':
+                activeChild = list(
+                  panel,
+                  new Find(input.search, searchPath.fsPath, false, config.get<string>('fdPath')),
+                );
+                break;
+              case 'global':
+                activeChild = list(
+                  panel,
+                  new Find(input.search, searchPath.fsPath, true, config.get<string>('fdPath')),
+                );
+                break;
+            }
             break;
           case previewAction:
-            preview(panel, searchPath, msg.data);
+            preview(panel, searchPath.fsPath, msg.data);
             break;
           case selectAction:
-            select(panel, searchPath, msg.data);
+            select(panel, searchPath.fsPath, msg.data);
             break;
         }
       });
@@ -73,99 +113,77 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
-async function list(
-  config: vscode.WorkspaceConfiguration,
-  panel: vscode.WebviewPanel,
-  rgState: { proc: ChildProcessWithoutNullStreams | null },
-  searchPath: vscode.Uri,
-  data: listInput,
-) {
-  if (rgState.proc) {
-    rgState.proc.removeAllListeners();
-    rgState.proc.stdout.removeAllListeners();
-    rgState.proc.stderr.removeAllListeners();
-    rgState.proc.kill('SIGKILL');
-  }
+interface engine {
+  start(): ChildProcessWithoutNullStreams;
+  process(input: string): boolean;
+  results(): match[];
+}
 
-  rgState.proc = spawn(
-    config.get<string>('rgPath') || 'rg',
-    [
-      '--json',
-      '--no-messages',
-      '--smart-case',
-      '--max-filesize=1M',
-      '-m=5',
-      '-F',
-      '--',
-      data.search,
-      '.',
-    ],
-    {
-      cwd: searchPath.fsPath,
-    },
-  );
-
-  rgState.proc.on('error', async err => {
+function list(panel: vscode.WebviewPanel, engine: engine): ChildProcessWithoutNullStreams {
+  const proc = engine.start();
+  proc.on('error', async err => {
     vscode.window.showErrorMessage(`node process failure: ${err}`);
   });
-  rgState.proc.stderr.on('data', async err => {
+  proc.stderr.on('data', async err => {
     vscode.window.showErrorMessage(`telescode failure: ${err}`);
   });
 
-  let outputBuffer = '';
-  const matches: rgMatch[] = [];
-  rgState.proc.stdout.on('data', async stdout => {
-    outputBuffer += stdout.toString();
-    const lines: string[] = outputBuffer.split('\n');
-    if (lines.length < 2) {
-      return;
-    }
-    if (matches.length > (config.get<number>('maxResults') ?? 20)) {
-      rgState.proc?.kill('SIGKILL');
-      return;
-    }
-
-    outputBuffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const parsedEntry: any = JSON.parse(line);
-        if (parsedEntry.type === 'match') matches.push(parsedEntry);
-      } catch (err: any) {
-        vscode.window.showErrorMessage(err.cause);
+  proc.stdout.on('data', async stdout => {
+    try {
+      if (!engine.process(stdout.toString())) {
+        proc.kill('SIGKILL');
       }
+    } catch (err) {
+      vscode.window.showErrorMessage(`telescode failure: ${err}`);
     }
   });
-  rgState.proc.on('close', async code => {
+  proc.on('close', async code => {
     panel.webview.postMessage({
       type: listAction,
       data: {
-        command: `${rgState.proc?.spawnargs.join(' ')}`,
-        matches: matches,
+        command: `${proc?.spawnargs.join(' ')}`,
+        matches: engine.results(),
       } satisfies listOutput,
     });
   });
+  return proc;
 }
 
-async function preview(panel: vscode.WebviewPanel, searchPath: vscode.Uri, data: previewInput) {
+async function preview(panel: vscode.WebviewPanel, searchPath: string, data: previewInput) {
+  if (!data) return;
   try {
-    panel.webview.postMessage({
-      type: previewAction,
-      data: {
-        code: (
-          await vscode.workspace.fs.readFile(vscode.Uri.joinPath(searchPath, data.file))
-        ).toString(),
-        theme: vscode.window.activeColorTheme.kind.toString(),
-      } satisfies previewOutput,
-    });
+    let filepath = vscode.Uri.file(data.file);
+    if (!data.file.startsWith('/')) {
+      filepath = vscode.Uri.joinPath(vscode.Uri.file(searchPath), data.file);
+    }
+    const filestat = await vscode.workspace.fs.stat(filepath);
+    if (filestat.size > 10_000_000) {
+      panel.webview.postMessage({
+        type: previewAction,
+        data: {
+          code: '# file is too fat for preview 🍟',
+        } satisfies previewOutput,
+      });
+    } else {
+      panel.webview.postMessage({
+        type: previewAction,
+        data: {
+          code: (await vscode.workspace.fs.readFile(filepath)).toString(),
+        } satisfies previewOutput,
+      });
+    }
   } catch (err: any) {
-    vscode.window.showErrorMessage(`preview failed: ${err}`);
+    vscode.window.showWarningMessage(`preview failed: ${err}`);
   }
 }
 
-async function select(panel: vscode.WebviewPanel, searchPath: vscode.Uri, data: selectInput) {
+async function select(panel: vscode.WebviewPanel, searchPath: string, data: selectInput) {
   try {
-    const doc = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(searchPath, data.file));
+    let filepath = vscode.Uri.file(data.file);
+    if (!data.file.startsWith('/')) {
+      filepath = vscode.Uri.joinPath(vscode.Uri.file(searchPath), data.file);
+    }
+    const doc = await vscode.workspace.openTextDocument(filepath);
     const position = new vscode.Position(data.line - 1, data.column);
     await vscode.window.showTextDocument(doc, {
       selection: new vscode.Selection(position, position),

@@ -1,12 +1,21 @@
+export interface match {
+  path: string;
+  line: number;
+  col: number;
+}
+
+export type listType = 'match' | 'regex' | 'file' | 'global';
+
 export const listAction = 'list';
 
 export interface listInput {
+  mode: listType;
   search: string;
 }
 
 export interface listOutput {
   command: string;
-  matches: rgMatch[];
+  matches: match[];
 }
 
 export const previewAction = 'preview';
@@ -17,7 +26,6 @@ export interface previewInput {
 
 export interface previewOutput {
   code: string;
-  theme: string;
 }
 
 export const selectAction = 'select';
@@ -26,21 +34,4 @@ export interface selectInput {
   file: string;
   line: number;
   column: number;
-}
-
-export type rgArbitary = { text: string };
-
-export interface rgMatch {
-  type: 'match';
-  data: {
-    path: rgArbitary;
-    lines: rgArbitary;
-    line_number: number | null;
-    absolute_offset: number;
-    submatches: Array<{
-      match: rgArbitary;
-      start: number;
-      end: number;
-    }>;
-  };
 }

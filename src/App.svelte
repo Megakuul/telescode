@@ -1,12 +1,15 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { codeToHtml } from 'shiki';
   import { findOne } from 'filename2shiki';
   import {
     listAction,
     listInput,
+    listType as mode,
+    match,
     previewAction,
     previewInput,
-    rgMatch,
+    previewOutput,
     selectAction,
     selectInput,
   } from './types';
@@ -17,83 +20,118 @@
   let previewFile = $state('');
   let previewLine = $state(0);
 
-  let matches: rgMatch[] = $state([]);
+  let matches: match[] = $state([]);
 
-  let searchBox: HTMLElement | undefined = $state();
   let search = $state('');
+  let searchString = $state('');
+  let searchMode: mode = $state('match');
   let searchTimeout: ReturnType<typeof setTimeout>;
   $effect(() => {
-    if (!search) return;
+    searchString = search;
+    const blocks = searchString.split(':', 2);
+    if (blocks.length === 2) {
+      switch (blocks[0]) {
+        case 'r':
+          searchMode = 'regex';
+          searchString = blocks[1];
+          break;
+        case 'f':
+          searchMode = 'file';
+          searchString = blocks[1];
+          break;
+        case 'g':
+          searchMode = 'global';
+          searchString = blocks[1];
+          break;
+        default:
+          searchMode = 'match';
+          break;
+      }
+    } else searchMode = 'match';
+
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
       matches = [];
+      command = '';
       previewCode = '';
+      if (!searchString) return;
       vscode.postMessage({
         type: listAction,
         data: {
-          search: search,
+          mode: untrack(() => searchMode),
+          search: untrack(() => searchString),
         } satisfies listInput,
       });
     }, 100);
   });
 
-  window.addEventListener('keydown', event => {
-    if (event.key === 'Tab' && matches.length < 1) {
-      searchBox?.focus();
-      event.preventDefault();
-    } else if (event.key.length === 1) {
-      searchBox?.focus();
+  async function highlightPreview(input: previewOutput) {
+    if (!search) return;
+
+    const code = input.code
+      .toString()
+      .split('\n')
+      .slice(Math.max(previewLine - 10, 0), previewLine + 10)
+      .join('\n');
+
+    const decorations = [];
+    switch (searchMode) {
+      case 'match':
+        let lastPos = 0;
+        while ((lastPos = String(code).indexOf(searchString, lastPos)) !== -1) {
+          decorations.push({
+            start: lastPos,
+            end: lastPos + searchString.length,
+            properties: { class: 'highlighted-match' },
+          });
+          lastPos += searchString.length;
+        }
+        break;
+      case 'regex':
+        const r = new RegExp(searchString, 'g');
+        let match;
+        while ((match = r.exec(code)) !== null) {
+          decorations.push({
+            start: match.index,
+            end: match.index + match[0].length,
+            properties: { class: 'highlighted-match' },
+          });
+          if (match.index === r.lastIndex) {
+            r.lastIndex++;
+          }
+        }
+        break;
     }
-  });
+    const highlighted = await codeToHtml(code, {
+      lang: findOne(previewFile),
+      themes: {
+        light: 'catppuccin-macchiato',
+        dark: 'catppuccin-macchiato',
+      },
+      decorations: decorations,
+    });
+    previewCode = highlighted;
+  }
+
+  let command = $state('');
 
   window.addEventListener('message', event => {
     switch (event.data.type) {
       case listAction:
         matches = event.data.data.matches.slice(0, 10);
+        command = event.data.data.command;
         preview();
         break;
       case previewAction:
-        (async () => {
-          if (!search) return;
-
-          const code = event.data.data.code
-            .toString()
-            .split('\n')
-            .slice(Math.max(previewLine - 10, 0), previewLine + 10)
-            .join('\n');
-
-          const decorations = [];
-          let lastPos = 0;
-          while ((lastPos = String(code).indexOf(search, lastPos)) !== -1) {
-            decorations.push({
-              start: lastPos,
-              end: lastPos + search.length,
-              properties: { class: 'highlighted-match' },
-            });
-            lastPos += search.length;
-          }
-          const highlighted = await codeToHtml(code, {
-            lang: findOne(previewFile),
-            themes: {
-              light: 'catppuccin-macchiato',
-              dark: 'catppuccin-macchiato',
-            },
-            decorations: decorations,
-          });
-          previewCode = highlighted;
-        })();
+        highlightPreview(event.data.data);
         break;
     }
   });
 
-  function focus(node: HTMLElement) {
-    node.focus();
-  }
-
-  function preview(file?: { path: string; line: number }) {
+  function preview(file?: match) {
     if (!file) {
       if (matches.length > 0) {
-        file = { path: matches[0].data.path.text, line: matches[0].data.line_number ?? 0 };
+        file = matches[0];
       } else return;
     }
     previewFile = file.path;
@@ -106,14 +144,10 @@
     });
   }
 
-  function select(file?: { path: string; line: number; col: number }) {
+  function select(file?: match) {
     if (!file) {
       if (matches.length > 0) {
-        file = {
-          path: matches[0].data.path.text,
-          line: matches[0].data.line_number ?? 0,
-          col: matches[0].data.submatches?.[0]?.start ?? 0,
-        };
+        file = matches[0];
       } else return;
     }
     vscode.postMessage({
@@ -125,46 +159,105 @@
       } satisfies selectInput,
     });
   }
+
+  let searchBox: HTMLElement | undefined = $state();
+
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Tab' && matches.length < 1) {
+      searchBox?.focus();
+      event.preventDefault();
+    } else if (event.key.length === 1 || event.key === 'Backspace') {
+      searchBox?.focus();
+    }
+  });
+
+  function focus(node: HTMLElement) {
+    node.focus();
+  }
 </script>
 
-<div class="w-full flex flex-col gap-4 items-center justify-center p-8">
+<div class="w-full min-h-screen flex flex-col gap-4 items-center justify-center p-8">
   <pre class="h-100 w-full glass rounded-lg overflow-hidden" tabindex="-1" inert>
     {@html previewCode}
   </pre>
-  <input
-    type="text"
-    class="w-full glass rounded-lg p-2 text-2xl outline-none"
-    placeholder="Search"
-    use:focus
-    bind:this={searchBox}
-    bind:value={search}
-    onkeydown={e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        select();
-      }
-    }}
-  />
+  <div class="w-full relative">
+    {#if searchMode === 'match'}
+      <p
+        class="absolute top-1/2 translate-y-[-50%] glass p-2 rounded-sm right-3 z-10 text-indigo-500/80"
+      >
+        match
+      </p>
+    {:else if searchMode === 'regex'}
+      <p
+        class="absolute top-1/2 translate-y-[-50%] glass p-2 rounded-sm right-3 z-10 text-emerald-600/80"
+      >
+        regex
+      </p>
+    {:else if searchMode === 'file'}
+      <p
+        class="absolute top-1/2 translate-y-[-50%] glass p-2 rounded-sm right-3 z-10 text-amber-400/80"
+      >
+        file
+      </p>
+    {:else if searchMode === 'global'}
+      <p
+        class="absolute top-1/2 translate-y-[-50%] glass p-2 rounded-sm right-3 z-10 text-orange-500/80"
+      >
+        global
+      </p>
+    {/if}
+    <input
+      type="text"
+      class="w-full glass rounded-lg p-2 text-2xl outline-none"
+      placeholder="Search ('r:' regex 'f:' file 'g:' global file)"
+      use:focus
+      bind:this={searchBox}
+      bind:value={search}
+      onfocus={(e: any) => {
+        e.target.setSelectionRange(e.target.value.length, e.target.value.length);
+      }}
+      onkeydown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          select();
+        } else if (e.key === 'Tab' && e.shiftKey) {
+          e.preventDefault(); // prevent vscode from escaping to its outer shell when tabbing
+        }
+      }}
+    />
+  </div>
   <ol class="flex flex-col gap-2 w-full h-full">
     {#each matches as match, i}
       <li>
         <button
-          onfocus={() => preview({ path: match.data.path.text, line: match.data.line_number ?? 0 })}
+          onfocus={() => preview(match)}
           onclick={() =>
             select({
-              path: match.data.path.text,
-              line: match.data.line_number ?? 0,
-              col: match.data.submatches?.[0]?.start ?? 0,
+              path: match.path,
+              line: match.line,
+              col: match.col,
             })}
           class="w-full text-start glass p-2 rounded-lg focus:opacity-100 outline-none {i === 0
             ? 'opacity-60'
             : 'opacity-50'}"
         >
-          {match.data.path.text}:{match.data.line_number}
+          {match.path}{#if match.line}:{match.line}{/if}
         </button>
       </li>
     {/each}
   </ol>
+
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <p
+    onkeydown={e => {
+      e.preventDefault();
+      searchBox?.focus(); // stop vscode from escaping to its outer shell with the tabs
+    }}
+    tabindex="0"
+    class="mt-auto text-slate-100/40 outline-none"
+  >
+    {command}
+  </p>
 </div>
 
 <style>

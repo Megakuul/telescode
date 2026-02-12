@@ -16,15 +16,15 @@
     "configuration": {
       "title": "Telescode Settings",
       "properties": {
-        "telescode.maxResults": {
-          "type": "integer",
-          "default": 20,
-          "description": "Defines how many results are fetched per run"
-        },
         "telescode.rgPath": {
           "type": "string",
           "default": "rg",
           "description": "Defines the location of the ripgrep binary"
+        },
+        "telescode.fdPath": {
+          "type": "string",
+          "default": "fd",
+          "description": "Defines the location of the fd binary"
         }
       }
     },
@@ -32,6 +32,13 @@
       {
         "command": "telescode.open",
         "title": "Telescode"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "telescode.open",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f"
       }
     ]
   },
