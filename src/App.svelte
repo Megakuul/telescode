@@ -23,32 +23,33 @@
   let matches: match[] = $state([]);
 
   let search = $state('');
-  let searchString = $state('');
   let searchMode: mode = $state('match');
-  let searchTimeout: ReturnType<typeof setTimeout>;
+  let searchString = $state('');
   $effect(() => {
-    searchString = search;
-    const blocks = searchString.split(':', 2);
+    const blocks = search.split(':', 2);
     if (blocks.length === 2) {
       switch (blocks[0]) {
         case 'r':
           searchMode = 'regex';
           searchString = blocks[1];
-          break;
+          return;
         case 'f':
           searchMode = 'file';
           searchString = blocks[1];
-          break;
+          return;
         case 'g':
           searchMode = 'global';
           searchString = blocks[1];
-          break;
-        default:
-          searchMode = 'match';
-          break;
+          return;
       }
-    } else searchMode = 'match';
+    }
+    searchMode = 'match';
+    searchString = search;
+  });
 
+  let searchTimeout: ReturnType<typeof setTimeout>;
+  $effect(() => {
+    searchString; // register dependency since setTimeout callback is not registered
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
       matches = [];
@@ -58,8 +59,8 @@
       vscode.postMessage({
         type: listAction,
         data: {
-          mode: untrack(() => searchMode),
-          search: untrack(() => searchString),
+          mode: searchMode,
+          search: searchString,
         } satisfies listInput,
       });
     }, 100);
@@ -71,7 +72,10 @@
     const code = input.code
       .toString()
       .split('\n')
-      .slice(Math.max(previewLine - 10, 0), previewLine + 10)
+      .slice(
+        Math.max(previewLine - 10, 0),
+        Math.max(previewLine + 10, -(previewLine - 10) + previewLine + 10),
+      )
       .join('\n');
 
     const decorations = [];
@@ -248,6 +252,7 @@
   </ol>
 
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <p
     onkeydown={e => {
       e.preventDefault();

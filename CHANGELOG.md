@@ -1,9 +1,9 @@
 # Change Log
 
-All notable changes to the "telescode" extension will be documented in this file.
+## [0.0.1]
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+- Everything is perfect
 
-## [Unreleased]
+## [0.0.2]
 
-- Initial release
+- Nevermind, but this time it's actually perfect

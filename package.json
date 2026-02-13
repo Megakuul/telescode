@@ -2,13 +2,18 @@
   "name": "telescode",
   "displayName": "telescode",
   "description": "Simple fuzzy finder for VSCode",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
-    "vscode": "^1.108.0"
+    "vscode": "^1.80.0"
   },
   "categories": [
     "Other"
   ],
+  "publisher": "Megakuul",
+  "repository": {
+    "url": "https://github.com/Megakuul/telescode"
+  },
+  "icon": "./dist/extension/favicon.png",
   "type": "module",
   "activationEvents": [],
   "main": "./dist/extension/extension.cjs",
@@ -52,7 +57,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.109.0",
+    "@types/vscode": "^1.80.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "concurrently": "^9.2.1",

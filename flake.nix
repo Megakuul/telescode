@@ -18,7 +18,6 @@
           default = pkgs.mkShell {
             packages = with pkgs; [
               nodejs
-              vsce
             ];
           };
         }

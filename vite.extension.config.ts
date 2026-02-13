@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  publicDir: 'src/assets',
   build: {
     target: 'node18',
     lib: {

@@ -1,5 +1,7 @@
 # telescode 🔭
 
+![icon](/src/assets/favicon.png)
+
 Like telescope but for vscode and in simple.
 
 ## Setup
@@ -33,7 +35,3 @@ You can start typing one of the listed prefixes in the search bar to use custom 
 ## Support
 
 Works on linux with preinstalled ripgrep and fd. I did not test any other setup.
-
-## Notice
-
-I didn't put much love into this product: the code is very much overnight written crap don't expect it to work perfectly integrated on every system.

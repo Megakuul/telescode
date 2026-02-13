@@ -41,6 +41,10 @@ export function activate(context: vscode.ExtensionContext) {
       const webUri = panel.webview.asWebviewUri(
         vscode.Uri.joinPath(context.extensionUri, 'dist', 'web'),
       );
+      panel.iconPath = vscode.Uri.file(
+        path.join(context.extensionPath, 'dist', 'extension', 'favicon.png'),
+      );
+
       panel.webview.html = `
         <!doctype html>
         <html lang="en">
@@ -184,7 +188,7 @@ async function select(panel: vscode.WebviewPanel, searchPath: string, data: sele
       filepath = vscode.Uri.joinPath(vscode.Uri.file(searchPath), data.file);
     }
     const doc = await vscode.workspace.openTextDocument(filepath);
-    const position = new vscode.Position(data.line - 1, data.column);
+    const position = new vscode.Position(Math.max(data.line - 1, 0), data.column);
     await vscode.window.showTextDocument(doc, {
       selection: new vscode.Selection(position, position),
       preview: false,
